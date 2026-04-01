@@ -1,147 +1,108 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
-
 package br.edu.satc.todolistcompose.ui.screens
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import br.edu.satc.todolistcompose.data.TaskData
-import br.edu.satc.todolistcompose.mockTaskData
+import br.edu.satc.todolistcompose.data.TaskViewModel
+import br.edu.satc.todolistcompose.data.toTaskData
 import br.edu.satc.todolistcompose.ui.components.TaskCard
-import br.edu.satc.todolistcompose.ui.theme.ToDoListComposeTheme
-import kotlinx.coroutines.launch
 
-@Preview(showBackground = true)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PreviewHomeScreen() {
-    ToDoListComposeTheme { HomeScreen() }
-}
+fun HomeScreen(viewModel: TaskViewModel) {
+    val tasks by viewModel.tasks.collectAsState()
 
-@Composable
-fun HomeScreen() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(top = 8.dp)
-    ) {
-        // Conteúdo principal (lista de items)
-        Content()
-
-        // Dialog new Task
-        NewTask()
-    }
-}
-
-@Composable
-fun Content() {
-    LazyColumn {
-        items(items = mockTaskData) { task ->
-            TaskCard(taskData = task, onTaskCheckedChange = { /*TODO*/ })
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (tasks.isEmpty()) {
+            Text(
+                text = "Nenhuma tarefa ainda!",
+                modifier = Modifier.align(Alignment.Center)
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(tasks) { taskEntity ->
+                    val task = taskEntity.toTaskData()
+                    TaskCard(
+                        taskData = task,
+                        onTaskCheckedChange = { viewModel.toggleTask(task) }
+                    )
+                }
+            }
         }
+        NewTask(
+            modifier = Modifier.align(Alignment.BottomEnd),
+            onSaveTask = { title, description -> viewModel.addTask(title, description) }
+        )
     }
 }
 
-/**
- * NewTask abre uma janela estilo "modal". No Android conhecida por BottomSheet.
- * Aqui podemos "cadastrar uma nova Task".
- */
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NewTask() {
-    val sheetState = rememberModalBottomSheetState()
-    val scope = rememberCoroutineScope()
+fun NewTask(
+    modifier: Modifier = Modifier,
+    onSaveTask: (String, String) -> Unit
+) {
+    var showBottomSheet by remember { mutableStateOf(false) }
     var taskTitle by remember { mutableStateOf("") }
     var taskDescription by remember { mutableStateOf("") }
-    var showBottomSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-    ) {
-        ExtendedFloatingActionButton(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            text = { Text("Nova tarefa") },
-            icon = { Icon(Icons.Filled.Add, contentDescription = "") },
-            onClick = {
-                showBottomSheet = true
-            })
-    }
+    ExtendedFloatingActionButton(
+        onClick = { showBottomSheet = true },
+        icon = { Icon(Icons.Filled.Add, "Nova Tarefa") },
+        text = { Text("Nova Tarefa") },
+        modifier = modifier.padding(16.dp)
+    )
 
     if (showBottomSheet) {
         ModalBottomSheet(
-            onDismissRequest = {
-                showBottomSheet = false
-            },
-            sheetState = sheetState,
+            onDismissRequest = { showBottomSheet = false },
+            sheetState = sheetState
         ) {
-            // Sheet content
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-
+                Text("Nova Tarefa", style = MaterialTheme.typography.titleLarge)
                 OutlinedTextField(
                     value = taskTitle,
                     onValueChange = { taskTitle = it },
-                    label = { Text(text = "Título da tarefa") })
+                    label = { Text("Título") },
+                    modifier = Modifier.fillMaxWidth()
+                )
                 OutlinedTextField(
                     value = taskDescription,
                     onValueChange = { taskDescription = it },
-                    label = { Text(text = "Descrição da tarefa") })
+                    label = { Text("Descrição") },
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Button(
-                    modifier = Modifier.padding(top = 4.dp),
                     onClick = {
-                        // Aqui salvaríamos a nova Task
-                        scope.launch { sheetState.hide() }.invokeOnCompletion {
-                            if (!sheetState.isVisible) {
-                                showBottomSheet = false
-                            }
+                        if (taskTitle.isNotBlank()) {
+                            onSaveTask(taskTitle, taskDescription)
+                            taskTitle = ""
+                            taskDescription = ""
+                            showBottomSheet = false
                         }
-
-                        // Salva nova task
-                        mockTaskData.add(
-                            TaskData(
-                                title = taskTitle,
-                                description = taskDescription,
-                                complete = false
-                            )
-                        )
-
-                        // Limpa os campos
-                        taskTitle = ""
-                        taskDescription = ""
-
-                    }) {
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text("Salvar")
                 }
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
